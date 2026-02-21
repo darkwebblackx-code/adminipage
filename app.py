@@ -18,20 +18,21 @@ if "admin_authenticated" not in st.session_state:
 # ================= ADMIN LOGIN ==================
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234").strip()  # remove whitespace
 
-def check_login():
-    password_input = st.session_state.get("password_input", "")
-    if password_input == ADMIN_PASSWORD:
-        st.session_state.admin_authenticated = True
-        st.success("✅ Umeingia Admin!")
-        st.experimental_rerun()
-    else:
-        st.error("❌ Password si sahihi. Jaribu tena.")
-
 if not st.session_state.admin_authenticated:
     st.subheader("🔐 Admin Login")
-    st.text_input("Weka Admin Password", type="password", key="password_input")
-    st.button("Login", on_click=check_login)
-    st.stop()  # stop execution until authenticated
+    
+    with st.form("login_form"):
+        password_input = st.text_input("Weka Admin Password", type="password")
+        submitted = st.form_submit_button("Login")
+        
+        if submitted:
+            if password_input == ADMIN_PASSWORD:
+                st.session_state.admin_authenticated = True
+                st.success("✅ Umeingia Admin!")
+            else:
+                st.error("❌ Password si sahihi. Jaribu tena.")
+    
+    st.stop()  # Stop execution until authenticated
 
 # ================= LOAD ORDERS ==================
 conn = sqlite3.connect(DB_NAME)
