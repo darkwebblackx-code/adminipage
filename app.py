@@ -1,4 +1,3 @@
-# admin.py - Coty Orders Admin Dashboard with Password
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -6,29 +5,33 @@ from datetime import datetime
 import os
 
 # ================= DATABASE =====================
-DB_NAME = "orders.db"  # Must match chatbot database
+DB_NAME = "orders.db"  # must match chatbot db
 
 # ================= STREAMLIT UI =================
 st.set_page_config(page_title="Coty Admin Dashboard", page_icon="📊")
 st.title("📊 Coty Orders Admin Panel")
 
-# ================= ADMIN LOGIN ==================
+# ================= SESSION SETUP =================
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234")
+# ================= ADMIN LOGIN ==================
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234").strip()  # remove whitespace
+
+def check_login():
+    password_input = st.session_state.get("password_input", "")
+    if password_input == ADMIN_PASSWORD:
+        st.session_state.admin_authenticated = True
+        st.success("✅ Umeingia Admin!")
+        st.experimental_rerun()
+    else:
+        st.error("❌ Password si sahihi. Jaribu tena.")
 
 if not st.session_state.admin_authenticated:
     st.subheader("🔐 Admin Login")
-    password_input = st.text_input("Weka Admin Password", type="password")
-    if st.button("Login"):
-        if password_input == ADMIN_PASSWORD:
-            st.session_state.admin_authenticated = True
-            st.success("✅ Umeingia Admin!")
-            st.experimental_rerun()
-        else:
-            st.error("❌ Password si sahihi. Jaribu tena.")
-    st.stop()  # Stop running below code until authenticated
+    st.text_input("Weka Admin Password", type="password", key="password_input")
+    st.button("Login", on_click=check_login)
+    st.stop()  # stop execution until authenticated
 
 # ================= LOAD ORDERS ==================
 conn = sqlite3.connect(DB_NAME)
