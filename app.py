@@ -9,6 +9,19 @@ st.title("🛒 Coty Admin Dashboard")
 conn = sqlite3.connect("orders.db", check_same_thread=False)
 cursor = conn.cursor()
 
+# --- HAKIKISHA TABLE ipo ---
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jina TEXT,
+    simu TEXT,
+    location TEXT,
+    bidhaa TEXT,
+    idadi TEXT
+)
+""")
+conn.commit()
+
 # --- API ---
 API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
 client = genai.Client(api_key=API_KEY)
