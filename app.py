@@ -10,7 +10,7 @@ from datetime import datetime
 st.set_page_config(page_title="Coty Admin Page", page_icon="🛒", layout="wide")
 
 DB_NAME = "orders.db"
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")  # Change in Render environment
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123") 
 
 # ---------------------------
 # Automatic Database Creation
