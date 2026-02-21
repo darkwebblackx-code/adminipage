@@ -4,6 +4,22 @@ import os
 from google import genai
 
 st.title("🛒 Coty Admin Dashboard")
+st.header("🛒 Admin Orders")
+cursor.execute("SELECT * FROM orders ORDER BY id DESC")
+orders = cursor.fetchall()
+
+if orders:
+    for row in orders:
+        st.write(f"""
+        Order ID: {row[0]}
+        Jina: {row[1]}
+        Simu: {row[2]}
+        Location: {row[3]}
+        Bidhaa: {row[4]}
+        Idadi: {row[5]}
+        """)
+else:
+    st.info("Hakuna order bado.")
 
 # --- Database ---
 conn = sqlite3.connect("orders.db", check_same_thread=False)
