@@ -1,339 +1,65 @@
-# Chat input
-user_input = st.chat_input("Andika ujumbe wako hapa...")
+# =====================================================
+# ================== ADMIN PAGE =======================
+# =====================================================
 
-if user_input:
-    save_message(st.session_state.session_id, "user", user_input)
-    with st.chat_message("user"):
-        st.markdown(user_input)
+import pandas as pd
 
-    if is_order(user_input):
-        if not customer_name or not phone_number:
-            ai_reply = (
-                "Tafadhali weka **jina lako** na **namba ya simu** "
-                "ili nikamilishe oda yako 📞"
-            )
-        else:
-            save_order(
-                st.session_state.session_id,
-                customer_name,
-                phone_number,
-                user_input
-            )
-            ai_reply = (
-                f"Asante sana **{customer_name}** 🥩\n\n"
-                "Oda yako nimeipokea na **nimeituma kwa admin wetu mara moja**.\n"
-                "Tutawasiliana nawe hivi karibuni."
-            )
+st.sidebar.markdown("---")
+st.sidebar.title("🔐 Admin Panel")
+
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "1234")
+admin_password_input = st.sidebar.text_input("Weka Admin Password", type="password")
+
+if admin_password_input == ADMIN_PASSWORD:
+
+    st.sidebar.success("Umefanikiwa kuingia Admin")
+
+    st.title("📊 Coty Orders Dashboard")
+
+    conn = sqlite3.connect(DB_NAME)
+    df = pd.read_sql_query("SELECT * FROM orders ORDER BY id DESC", conn)
+    conn.close()
+
+    if df.empty:
+        st.info("Hakuna orders bado.")
     else:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[SYSTEM_PROMPT, user_input]
+
+        # ================= STATS =================
+        st.subheader("📈 Order Statistics")
+
+        total_orders = len(df)
+        today_orders = len(df[df["created_at"].str.contains(datetime.now().strftime("%Y-%m-%d"))])
+
+        col1, col2 = st.columns(2)
+        col1.metric("Total Orders", total_orders)
+        col2.metric("Orders Today", today_orders)
+
+        st.markdown("---")
+
+        # ================= TABLE =================
+        st.subheader("📋 Orders List")
+        st.dataframe(df, use_container_width=True)
+
+        # ================= DOWNLOAD CSV =================
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇️ Download Orders CSV",
+            data=csv,
+            file_name="coty_orders.csv",
+            mime="text/csv"
         )
-        ai_reply = response.text
 
-    save_message(st.session_state.session_id, "assistant", ai_reply)
-    with st.chat_message("assistant"):
-        st.markdown(ai_reply)
+        st.markdown("---")
 
-On Thu, 22 Jan 2026, 18:43 diocles deogratias, <dioclesdeo4sure@gmail.com> wrote:
-# =========================================================
-# IMPORTS
-# =========================================================
-import streamlit as st
-import os
-import uuid
-import psycopg2
-from urllib.parse import urlparse
-from google import genai
+        # ================= DELETE ORDER =================
+        st.subheader("🗑️ Delete Order")
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Coty Butchery AI",
-    page_icon="🥩",
-    layout="wide"
-)
+        order_id_to_delete = st.number_input("Weka Order ID ya kufuta", min_value=1, step=1)
 
-# =========================================================
-# DATABASE CONNECTION
-# =========================================================
-def get_db_connection():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        st.error("DATABASE_URL haijawekwa kwenye Environment Variables")
-        st.stop()
-
-    result = urlparse(db_url)
-    return psycopg2.connect(
-        database=result.path[1:],
-        user=result.username,
-        password=result.password,
-        host=result.hostname,
-        port=result.port
-    )
-
-# =========================================================
-# INIT DATABASE
-# =========================================================
-def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id SERIAL PRIMARY KEY,
-            session_id TEXT,
-            role TEXT,
-            message TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS orders (
-            id SERIAL PRIMARY KEY,
-            session_id TEXT,
-            customer_name TEXT,
-            phone_number TEXT,
-            order_details TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-init_db()
-
-# =========================================================
-# DATABASE HELPERS
-# =========================================================
-def save_message(session_id, role, message):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO conversations (session_id, role, message) VALUES (%s, %s, %s)",
-        (session_id, role, message)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def load_messages(session_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT role, message FROM conversations WHERE session_id=%s ORDER BY created_at",
-        (session_id,)
-    )
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return rows
-
-def save_order(session_id, customer_name, phone_number, order_details):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO orders (session_id, customer_name, phone_number, order_details)
-        VALUES (%s, %s, %s, %s)
-    """, (session_id, customer_name, phone_number, order_details))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-# =========================================================
-# GEMINI AI SETUP
-# =========================================================
-API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
-if not API_KEY:
-    st.error("GEMINI_API_KEY_RENDER haijawekwa")
-    st.stop()
-
-client = genai.Client(api_key=API_KEY)
-GEMINI_MODEL = "gemini-2.5-flash"
-
-# =========================================================
-# SYSTEM PROMPT (AI BRAIN)
-# =========================================================
-SYSTEM_PROMPT = """
-Wewe ni Coty, mhudumu wa wateja wa kidigitali wa Coty Butchery.
-
-MAJUKUMU:
-- Salimia mteja kwa adabu kubwa
-- Tumia Kiswahili sanifu
-- Mpokee oda ya nyama au bidhaa za butchery
-- Uliza jina na namba ya simu kama hajatoa
-- Oda ikikamilika, thibitisha na umwambie mteja kuwa
-  oda imetumwa kwa admin mara moja
-
-USITOE:
-- Bei za kubuni
-- Ahadi zisizo na uhakika
-"""
-
-# =========================================================
-# ORDER DETECTION
-# =========================================================
-ORDER_KEYWORDS = ["nataka", "naomba", "niletee", "oda", "order", "kilo", "kg"]
-
-def is_order(message: str) -> bool:
-    msg = message.lower()
-    return any(word in msg for word in ORDER_KEYWORDS)
-
-# =========================================================
-# SIDEBAR - CUSTOMER DETAILS
-# =========================================================
-st.sidebar.header("📋 Taarifa za Mteja")
-customer_name = st.sidebar.text_input("Jina lako")
-phone_number = st.sidebar.text_input("Namba ya simu")
-
-# =========================================================
-# MAIN UI
-# =========================================================
-st.title("🥩 Coty Butchery AI")
-
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
-
-# Load chat history
-for role, msg in load_messages(st.session_state.session_id):
-    with st.chat_message(role):
-        st.markdown(msg)
-
-# Chat input
-user_input = st.chat_input("Andika ujumbe wako hapa...")
-
-if user_input:
-    save_message(st.session_state.session_id, "user", user_input)
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    if is_order(user_input):
-        if not customer_name or not phone_number:
-            ai_reply = (
-                "Tafadhali weka **jina lako** na **namba ya simu** "
-                "ili nikamilishe oda yako 📞"
-            )
-        else:
-            save_order(
-                st.session_state.session_id,
-                customer_name,
-                phone_number,
-                user_input
-            )
-            ai_reply = (
-                f"Asante sana **{customer_name}** 🥩\n\n"
-                "Oda yako nimeipokea na **nimeituma kwa admin wetu mara moja**.\n"
-                "Tutawasiliana nawe hivi karibuni."
-            )
-    else:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=[SYSTEM_PROMPT, user_input]
-        )
-        ai_reply = response.text
-
-    save_message(st.session_state.session_id, "assistant", ai_reply)
-    with st.chat_message("assistant"):
-        st.markdown(ai_reply)
-
-On Thu, Jan 22, 2026 at 6:41 PM diocles deogratias <dioclesdeo4sure@gmail.com> wrote:
-import streamlit as st
-import psycopg2
-import os
-from urllib.parse import urlparse
-
-st.set_page_config(page_title="Coty Admin", layout="wide")
-
-# =========================================================
-# DB CONNECTION
-# =========================================================
-def get_db_connection():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        st.error("DATABASE_URL haipo kwenye environment variables")
-        st.stop()
-
-    result = urlparse(db_url)
-    return psycopg2.connect(
-        database=result.path[1:],
-        user=result.username,
-        password=result.password,
-        host=result.hostname,
-        port=result.port
-    )
-
-# =========================================================
-# PAGE TITLE
-# =========================================================
-st.title("🛠️ Coty Butchery – Admin Orders")
-
-# =========================================================
-# SESSION STATE
-# =========================================================
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
-
-# =========================================================
-# ADMIN PASSWORD
-# =========================================================
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
-if not ADMIN_PASSWORD:
-    st.error("ADMIN_PASSWORD haijawekwa")
-    st.stop()
-
-# =========================================================
-# LOGIN
-# =========================================================
-if not st.session_state.admin_logged_in:
-    with st.form("login_form"):
-        password_input = st.text_input("🔐 Weka Admin Password", type="password")
-        login_btn = st.form_submit_button("INGIA")
-
-        if login_btn:
-            if password_input.strip() == ADMIN_PASSWORD.strip():
-                st.session_state.admin_logged_in = True
-                st.success("Login successful ✅")
-                st.rerun()
-            else:
-                st.error("Password si sahihi ❌")
-
-# =========================================================
-# ORDERS VIEW
-# =========================================================
-if st.session_state.admin_logged_in:
-    st.subheader("📦 Orodha ya Oda Zote")
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT customer_name, phone_number, order_details, created_at
-        FROM orders
-        ORDER BY created_at DESC
-    """)
-    orders = cur.fetchall()
-    cur.close()
-    conn.close()
-
-    if not orders:
-        st.info("Hakuna oda bado.")
-    else:
-        for idx, (name, phone, details, time) in enumerate(orders, start=1):
-            st.markdown(f"""
-            ### 🧾 ODA #{idx}
-            **Jina:** {name}  
-            **Simu:** {phone}  
-
-            **Oda:**  
-            {details}
-
-            **Muda:** {time}
-            ---
-            """)
-
-    if st.button("🚪 Logout"):
-        st.session_state.admin_logged_in = False
-        st.rerun()
+        if st.button("Futa Order"):
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+            c.execute("DELETE FROM orders WHERE id = ?", (order_id_to_delete,))
+            conn.commit()
+            conn.close()
+            st.success(f"Order ID {order_id_to_delete} imefutwa. Refresh page.")
