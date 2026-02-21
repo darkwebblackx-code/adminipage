@@ -1,95 +1,66 @@
 import streamlit as st
 import sqlite3
-import pandas as pd
 import os
-from datetime import datetime
+from google import genai
 
-# ---------------------------
-# Config
-# ---------------------------
-st.set_page_config(page_title="Coty Admin Page", page_icon="🛒", layout="wide")
-
-DB_NAME = "orders.db"
-
-# ---------------------------
-# Automatic Database Creation
-# ---------------------------
-if not os.path.exists(DB_NAME):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_name TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        location TEXT NOT NULL,
-        order_details TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-        status TEXT DEFAULT 'Pending'
-    )
-    """)
-    conn.commit()
-    conn.close()
-    print("✅ orders.db na table orders zimeundwa automatically")
-
-# ---------------------------
-# Admin Page
-# ---------------------------
 st.title("🛒 Coty Admin Dashboard")
+
+# --- Database ---
+conn = sqlite3.connect("orders.db", check_same_thread=False)
+cursor = conn.cursor()
+
+# --- API ---
+API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
+client = genai.Client(api_key=API_KEY)
+MODEL = "gemini-2.5-flash"
+
+# --- Show Orders ---
 st.subheader("Order Details")
+cursor.execute("SELECT * FROM orders ORDER BY id DESC")
+orders = cursor.fetchall()
+if not orders:
+    st.info("Hakuna order bado.")
+else:
+    for order in orders:
+        st.markdown(f"""
+**Order ID:** {order[0]}  
+**Jina:** {order[1]}  
+**Simu:** {order[2]}  
+**Location:** {order[3]}  
+**Bidhaa:** {order[4]}  
+**Idadi:** {order[5]}
+""")
+        st.divider()
 
-# Connect to database
-conn = sqlite3.connect(DB_NAME)
-df = pd.read_sql_query("SELECT * FROM orders ORDER BY id DESC", conn)
-
-# ---------------------------
-# Sound alert for new orders
-# ---------------------------
-if "last_order_count" not in st.session_state:
-    st.session_state.last_order_count = len(df)
-
-if len(df) > st.session_state.last_order_count:
-    st.session_state.last_order_count = len(df)
-    # Trigger alert sound
-    st.audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg")
-
-# ---------------------------
-# Display orders in table
-# ---------------------------
-st.dataframe(df)
-
-# ---------------------------
-# Download orders as CSV
-# ---------------------------
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download Orders as CSV",
-    data=csv,
-    file_name=f"orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-    mime="text/csv"
-)
-
-# ---------------------------
-# Delete orders
-# ---------------------------
-st.subheader("Delete Orders")
-order_id_to_delete = st.number_input("Enter Order ID to Delete", min_value=1, step=1)
+# --- Delete Orders ---
+st.subheader("Delete Order")
+delete_id = st.number_input("Enter Order ID to delete", min_value=1, step=1)
 if st.button("Delete Order"):
-    c = conn.cursor()
-    c.execute("DELETE FROM orders WHERE id=?", (order_id_to_delete,))
-    conn.commit()
-    st.success(f"✅ Order ID {order_id_to_delete} deleted")
-    df = pd.read_sql_query("SELECT * FROM orders ORDER BY id DESC", conn)
-    st.dataframe(df)
+    cursor.execute("SELECT * FROM orders WHERE id=?", (delete_id,))
+    check = cursor.fetchone()
+    if check:
+        cursor.execute("DELETE FROM orders WHERE id=?", (delete_id,))
+        conn.commit()
+        st.success(f"✅ Order ID {delete_id} deleted")
+        st.experimental_rerun()
+    else:
+        st.error("❌ Order ID haipo")
 
-conn.close()
+# --- Send Message to AI ---
+st.subheader("Send Message to AI")
+admin_msg = st.text_area("Message for AI")
 
-# ---------------------------
-# Communicate with AI (Optional)
-# ---------------------------
-st.subheader("Send Message to AI Chatbot")
-ai_message = st.text_input("Message for AI")
 if st.button("Send to AI"):
-    # Here you would integrate your Gemini AI call
-    response = f"Simulated AI Response: You said '{ai_message}'"
-    st.success(response)
+    if admin_msg.strip()=="":
+        st.error("Andika message kwanza")
+    else:
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=admin_msg,
+                config={"temperature":0.3}
+            ).text
+            st.success("AI Response:")
+            st.write(response)
+        except Exception as e:
+            st.error(f"Kosa la AI: {e}")
