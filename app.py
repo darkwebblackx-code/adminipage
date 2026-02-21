@@ -38,24 +38,27 @@ if not os.path.exists(DB_NAME):
 # ---------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+# ---------------------------
+# Login Page (Correct)
+# ---------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-# ---------------------------
-# Login Page
-# ---------------------------
-def login():
-    st.title("🔐 Admin Login")
+st.title("🔐 Admin Login")
+
+with st.form("login_form"):
     password_input = st.text_input("Enter Admin Password", type="password")
-    if st.button("Login"):
+    submit_button = st.form_submit_button("Login")
+    if submit_button:
         if password_input == ADMIN_PASSWORD:
             st.session_state.logged_in = True
             st.success("✅ Login successful!")
         else:
             st.error("❌ Password is incorrect. Try again!")
 
+# Stop page if not logged in
 if not st.session_state.logged_in:
-    login()
     st.stop()
-
 # ---------------------------
 # Admin Page
 # ---------------------------
