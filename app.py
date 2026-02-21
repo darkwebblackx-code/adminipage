@@ -1,78 +1,71 @@
-import streamlit as st
-import sqlite3
-import os
-from google import genai
+ =========================================================
+# PAGE TITLE
+# =========================================================
+st.title("🛠️ Coty Butchery – Admin Orders")
 
+# =========================================================
+# SESSION STATE
+# =========================================================
+if "admin_logged_in" not in st.session_state:
+    st.session_state.admin_logged_in = False
 
-# --- Database ---
-conn = sqlite3.connect("orders.db", check_same_thread=False)
-cursor = conn.cursor()
+# =========================================================
+# ADMIN PASSWORD
+# =========================================================
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    st.error("ADMIN_PASSWORD haijawekwa")
+    st.stop()
 
-# --- HAKIKISHA TABLE ipo ---
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    jina TEXT,
-    simu TEXT,
-    location TEXT,
-    bidhaa TEXT,
-    idadi TEXT
-)
-""")
-conn.commit()
+# =========================================================
+# LOGIN
+# =========================================================
+if not st.session_state.admin_logged_in:
+    with st.form("login_form"):
+        password_input = st.text_input("🔐 Weka Admin Password", type="password")
+        login_btn = st.form_submit_button("INGIA")
 
-# --- API ---
-API_KEY = os.environ.get("GEMINI_API_KEY_RENDER")
-client = genai.Client(api_key=API_KEY)
-MODEL = "gemini-2.5-flash"
+        if login_btn:
+            if password_input.strip() == ADMIN_PASSWORD.strip():
+                st.session_state.admin_logged_in = True
+                st.success("Login successful ✅")
+                st.rerun()
+            else:
+                st.error("Password si sahihi ❌")
 
-# --- Show Orders ---
-st.subheader("Order Details")
-cursor.execute("SELECT * FROM orders ORDER BY id DESC")
-orders = cursor.fetchall()
-if not orders:
-    st.info("Hakuna order bado.")
-else:
-    for order in orders:
-        st.markdown(f"""
-**Order ID:** {order[0]}  
-**Jina:** {order[1]}  
-**Simu:** {order[2]}  
-**Location:** {order[3]}  
-**Bidhaa:** {order[4]}  
-**Idadi:** {order[5]}
-""")
-        st.divider()
+# =========================================================
+# ORDERS VIEW
+# =========================================================
+if st.session_state.admin_logged_in:
+    st.subheader("📦 Orodha ya Oda Zote")
 
-# --- Delete Orders ---
-st.subheader("Delete Order")
-delete_id = st.number_input("Enter Order ID to delete", min_value=1, step=1)
-if st.button("Delete Order"):
-    cursor.execute("SELECT * FROM orders WHERE id=?", (delete_id,))
-    check = cursor.fetchone()
-    if check:
-        cursor.execute("DELETE FROM orders WHERE id=?", (delete_id,))
-        conn.commit()
-        st.success(f"✅ Order ID {delete_id} deleted")
-        st.experimental_rerun()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT customer_name, phone_number, order_details, created_at
+        FROM orders
+        ORDER BY created_at DESC
+    """)
+    orders = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    if not orders:
+        st.info("Hakuna oda bado.")
     else:
-        st.error("❌ Order ID haipo")
+        for idx, (name, phone, details, time) in enumerate(orders, start=1):
+            st.markdown(f"""
+            ### 🧾 ODA #{idx}
+            **Jina:** {name}  
+            **Simu:** {phone}  
 
-# --- Send Message to AI ---
-st.subheader("Send Message to AI")
-admin_msg = st.text_area("Message for AI")
+            **Oda:**  
+            {details}
 
-if st.button("Send to AI"):
-    if admin_msg.strip()=="":
-        st.error("Andika message kwanza")
-    else:
-        try:
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=admin_msg,
-                config={"temperature":0.3}
-            ).text
-            st.success("AI Response:")
-            st.write(response)
-        except Exception as e:
-            st.error(f"Kosa la AI: {e}")
+            **Muda:** {time}
+            ---
+            """)
+
+    if st.button("🚪 Logout"):
+        st.session_state.admin_logged_in = False
+        st.rerun()
