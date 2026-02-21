@@ -10,7 +10,6 @@ from datetime import datetime
 st.set_page_config(page_title="Coty Admin Page", page_icon="🛒", layout="wide")
 
 DB_NAME = "orders.db"
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123") 
 
 # ---------------------------
 # Automatic Database Creation
@@ -33,32 +32,6 @@ if not os.path.exists(DB_NAME):
     conn.close()
     print("✅ orders.db na table orders zimeundwa automatically")
 
-# ---------------------------
-# Session State for Login
-# ---------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-# ---------------------------
-# Login Page (Correct)
-# ---------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-st.title("🔐 Admin Login")
-
-with st.form("login_form"):
-    password_input = st.text_input("Enter Admin Password", type="password")
-    submit_button = st.form_submit_button("Login")
-    if submit_button:
-        if password_input == ADMIN_PASSWORD:
-            st.session_state.logged_in = True
-            st.success("✅ Login successful!")
-        else:
-            st.error("❌ Password is incorrect. Try again!")
-
-# Stop page if not logged in
-if not st.session_state.logged_in:
-    st.stop()
 # ---------------------------
 # Admin Page
 # ---------------------------
@@ -117,7 +90,6 @@ conn.close()
 st.subheader("Send Message to AI Chatbot")
 ai_message = st.text_input("Message for AI")
 if st.button("Send to AI"):
-    # Here you would integrate your Gemini AI call, e.g.,
-    # response = call_gemini(ai_message)
+    # Here you would integrate your Gemini AI call
     response = f"Simulated AI Response: You said '{ai_message}'"
     st.success(response)
